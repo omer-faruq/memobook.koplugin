@@ -1,0 +1,12 @@
+{
+  "groups": [
+    [
+      "/mnt/onboard/books/Foo.epub",
+      "/mnt/onboard/books/Foo2.epub"
+    ],
+    [
+      "/mnt/onboard/books/Bar.epub",
+      "/mnt/onboard/books/Bar2.epub"
+    ]
+  ]
+}
