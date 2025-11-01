@@ -4,5 +4,5 @@ return {
     name = "memobook",
     fullname = _([[Memo Book]]),
     description = _([[Personal memos for highlighted text selections.]]),
-    version = 1.0.0,
+    version = "1.0.1",
 }
