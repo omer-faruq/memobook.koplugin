@@ -36,7 +36,7 @@ MemoBook identifies documents by their file paths. If you keep multiple versions
 
 1. Create or edit `document_map.json`.
 2. Place it either in the plugin folder (`plugins/memobook.koplugin/`) or in the user data folder (`<data>/memobook/`). The data copy overrides the bundled one.
-3. List related paths together. Each array starts with the primary identity followed by aliases. Example:
+3. List related paths together. You can find the **full path** of a book by using the top menu > Memo Book > long-press an item > details pop-up. Each array starts with the primary identity followed by aliases. Example:
    ```json
    {
      "groups": [
