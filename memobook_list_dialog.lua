@@ -63,6 +63,20 @@ local function getPreferredDialogWidth()
     return math.floor(base * 0.92)
 end
 
+local function ensureButtonCallbacks(button_grid)
+    if not button_grid then
+        return button_grid
+    end
+    for _, row in ipairs(button_grid) do
+        for _, entry in ipairs(row) do
+            if entry.callback == nil then
+                entry.callback = function() end
+            end
+        end
+    end
+    return button_grid
+end
+
 function ListDialog:showGroupActions(group)
     local opts = groupOptions(group)
     local full_group = self.manager:getGroupForTag(group.primary_tag, opts)
@@ -70,55 +84,72 @@ function ListDialog:showGroupActions(group)
         UIManager:show(InfoMessage:new{ text = _("Group could not be loaded."), timeout = 2 })
         return
     end
-    UIManager:show(ButtonDialog:new{
-        title = full_group.primary_tag,
-        buttons = {
+    local dialog
+    local buttons = {
+        {
             {
-                {
-                    text = _("Details"),
-                    callback = function()
-                        if UIManager.closeTopmost then
-                            UIManager:closeTopmost()
-                        elseif UIManager.close then
-                            UIManager:close()
-                        end
-                        self:showGroupDetails(full_group)
-                    end,
-                },
-                {
-                    text = _("Open"),
-                    callback = function()
-                        UIManager:scheduleIn(0, function()
-                            self.popup:show(full_group.primary_tag, { document_id = full_group.document_id, identity = full_group.document_identity, identity_type = full_group.document_identity_type })
-                        end)
-                    end,
-                },
-                {
-                    text = _("Delete"),
-                    callback = function()
-                        if UIManager.closeTopmost then
-                            UIManager:closeTopmost()
-                        elseif UIManager.close then
-                            UIManager:close()
-                        end
-                        UIManager:show(ConfirmBox:new{
-                            text = T(_("Delete memo group '%1'?"), full_group.primary_tag),
-                            ok_text = _("Delete"),
-                            ok_callback = function()
-                                self.manager:removeGroup(full_group.primary_tag, opts)
-                                self:show()
-                            end,
-                        })
-                    end,
-                },
+                text = _("Details"),
+                callback = function()
+                    if dialog then
+                        UIManager:close(dialog)
+                    elseif UIManager.closeTopmost then
+                        UIManager:closeTopmost()
+                    elseif UIManager.close then
+                        UIManager:close()
+                    end
+                    self:showGroupDetails(full_group)
+                end,
             },
             {
-                {
-                    text = _("Cancel"),
-                },
+                text = _("Open"),
+                callback = function()
+                    UIManager:scheduleIn(0, function()
+                        self.popup:show(full_group.primary_tag, { document_id = full_group.document_id, identity = full_group.document_identity, identity_type = full_group.document_identity_type })
+                    end)
+                end,
+            },
+            {
+                text = _("Delete"),
+                callback = function()
+                    if dialog then
+                        UIManager:close(dialog)
+                    elseif UIManager.closeTopmost then
+                        UIManager:closeTopmost()
+                    elseif UIManager.close then
+                        UIManager:close()
+                    end
+                    UIManager:show(ConfirmBox:new{
+                        text = T(_("Delete memo group '%1'?"), full_group.primary_tag),
+                        ok_text = _("Delete"),
+                        ok_callback = function()
+                            self.manager:removeGroup(full_group.primary_tag, opts)
+                            self:show()
+                        end,
+                    })
+                end,
             },
         },
-    })
+        {
+            {
+                text = _("Cancel"),
+                callback = function()
+                    if dialog then
+                        UIManager:close(dialog)
+                    elseif UIManager.closeTopmost then
+                        UIManager:closeTopmost()
+                    elseif UIManager.close then
+                        UIManager:close()
+                    end
+                end,
+            },
+        },
+    }
+    ensureButtonCallbacks(buttons)
+    dialog = ButtonDialog:new{
+        title = full_group.primary_tag,
+        buttons = buttons,
+    }
+    UIManager:show(dialog)
 end
 
 local function formatTimestamp(ts)
@@ -130,6 +161,11 @@ end
 
 function ListDialog:showGroupDetails(group)
     local lines = {}
+    local identity_text = group and group.document_identity or ""
+    if not identity_text or identity_text == "" then
+        identity_text = _("(unknown path)")
+    end
+    table.insert(lines, T(_("File: %1"), identity_text))
     table.insert(lines, T(_("Primary tag: %1"), group.primary_tag or ""))
     local alias_text
     if group.aliases and #group.aliases > 0 then
@@ -140,7 +176,6 @@ function ListDialog:showGroupDetails(group)
     table.insert(lines, T(_("Aliases: %1"), alias_text))
     local note_count = group.notes and #group.notes or 0
     table.insert(lines, T(_("Notes: %1"), note_count))
-    table.insert(lines, T(_("Multi-note mode: %1"), group.multi_note_mode and _("Enabled") or _("Disabled")))
     if note_count > 0 then
         local preview = util.trim(group.notes[1].text or "")
         if #preview > 200 then
@@ -260,6 +295,7 @@ function ListDialog:show(opts)
             },
             { close_button },
         }
+        ensureButtonCallbacks(buttons)
         local dialog = ButtonDialog:new{
             title = _("Memo Book"),
             buttons = buttons,
@@ -306,6 +342,7 @@ function ListDialog:show(opts)
         })
     end
 
+    ensureButtonCallbacks(button_rows)
     local dialog_width = getPreferredDialogWidth()
     local dialog = ButtonDialog:new{
         title = _("Memo Book"),
@@ -386,6 +423,7 @@ function ListDialog:show(opts)
         },
     }
 
+    ensureButtonCallbacks(controls_buttons)
     local controls_table = ButtonTable:new{
         buttons = controls_buttons,
         width = available_width,
