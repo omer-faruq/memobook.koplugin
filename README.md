@@ -22,21 +22,21 @@ MemoBook surfaces a "Memo" button in several places so you can jot things down f
   - Use the sticky controls at the top to search tags/aliases, clear filters, export all memos for the book to JSON, or close the dialog.
 
 ### Main menu (outside any document)
-- The same **`Memo Book`** entry opens a global view across every document. Each row shows the primary tag plus its document display name so you can review or edit notes without loading a book first.
+- The same **`Memo Book`** entry opens a global view across every document. Each row shows the primary tag plus its document display name, so you can review or edit notes without loading a book first.
 
 ## Working with Alias names
 An *alias* is an alternate tag that points to the same memo group. Aliases are useful when:
 - A dictionary lookup returns a canonical headword that differs from the text you highlighted.
 - You want different spellings, declensions, or translations to share a single memo history.
 
-From the Memo popup you can add or remove aliases using the dedicated buttons. When adding a memo from the dictionary popup, MemoBook automatically suggests the lookup word as an initial alias whenever it differs from your selection.
+From the Memo pop-up you can add or remove aliases using the dedicated buttons. When adding a memo from the dictionary pop-up, MemoBook automatically suggests the lookup word as an initial alias whenever it differs from your selection.
 
 ## Understanding `document_map.json`
-MemoBook identifies documents by their file paths. If you keep multiple versions of the same work (for example EPUB vs. PDF, different language editions, or related titles in a series), you can tell MemoBook to treat them as the same identity:
+MemoBook identifies documents by their file paths. If you keep multiple versions of the same work (for example, EPUB vs. PDF, different language editions, or related titles in a series), you can tell MemoBook to treat them as the same identity:
 
 1. Create or edit `document_map.json`.
 2. Place it either in the plugin folder (`plugins/memobook.koplugin/`) or in the user data folder (`<data>/memobook/`). The data copy overrides the bundled one.
-3. List related paths together. You can find the **full path** of a book by using the top menu > Memo Book > long-press an item > details pop-up. Each array starts with the primary identity followed by aliases. Example:
+3. List related paths together. You can find the **full path** of a book by using the top menu > Memo Book > long-press an item > details pop-up. The example below shows two separate groups that have two related books in them:
    ```json
    {
      "groups": [
