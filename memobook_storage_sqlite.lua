@@ -523,6 +523,7 @@ local function loadFullData(conn, target_document_id)
         local doc_id = tonumber(doc.id)
         if doc_id then
             data.documents[doc_id] = {
+                id = doc_id,
                 identity = doc.identity,
                 identity_type = doc.identity_type,
                 display_name = doc.display_name,
