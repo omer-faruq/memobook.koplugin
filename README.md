@@ -29,14 +29,14 @@ An *alias* is an alternate tag that points to the same memo group. Aliases are u
 - A dictionary lookup returns a canonical headword that differs from the text you highlighted.
 - You want different spellings, declensions, or translations to share a single memo history.
 
-From the Memo pop-up you can add or remove aliases using the dedicated buttons. When adding a memo from the dictionary pop-up, MemoBook automatically suggests the lookup word as an initial alias whenever it differs from your selection.
+From the Memo pop-up, you can add or remove aliases using the dedicated buttons. When adding a memo from the dictionary pop-up, MemoBook automatically suggests the lookup word as an initial alias whenever it differs from your selection.
 
 ## Understanding `document_map.json`
 MemoBook identifies documents by their file paths. If you keep multiple versions of the same work (for example, EPUB vs. PDF, different language editions, or related titles in a series), you can tell MemoBook to treat them as the same identity:
 
 1. Create or edit `document_map.json`.
-2. Place it either in the plugin folder (`plugins/memobook.koplugin/`) or in the user data folder (`<data>/memobook/`). The data copy overrides the bundled one.
-3. List related paths together. You can find the **full path** of a book by using the top menu > Memo Book > long-press an item > details pop-up. The example below shows two separate groups that have two related books in them:
+2. Place it either in the plugin folder (`plugins/memobook.koplugin/`) or in the koreader folder (`koreader/memobook/`). The data copy overrides the bundled one.
+3. List related paths together. You can find the **full path** of a book by using the top menu > Memo Book > long-press a memo title > details pop-up. The example below shows two separate groups that have two related books in them:
    ```json
    {
      "groups": [
