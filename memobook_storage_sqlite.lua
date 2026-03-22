@@ -511,6 +511,26 @@ function Storage.removeAlias(group_id, normalized_alias)
     end)
 end
 
+function Storage.resolveAlias(document_id, normalized_text)
+    Storage.init()
+    if not document_id or not normalized_text then
+        return nil
+    end
+    return withConnection(function(conn)
+        local row = fetchOne(conn, [[
+            SELECT g.normalized_tag 
+            FROM aliases a 
+            JOIN groups g ON g.id = a.group_id 
+            WHERE g.document_id = ? AND a.normalized_alias = ? 
+            LIMIT 1;
+        ]], { document_id, normalized_text })
+        if row then
+            return row.normalized_tag
+        end
+        return nil
+    end)
+end
+
 local function loadFullData(conn, target_document_id)
     local data = { documents = {}, groups = {} }
     local document_rows

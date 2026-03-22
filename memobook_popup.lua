@@ -549,7 +549,8 @@ function Popup:show(tag, context, options)
         })
         return
     end
-    buildMultiNoteDialog(self, tag, group, context, options or {})
+    local display_tag = group.primary_tag or tag
+    buildMultiNoteDialog(self, display_tag, group, context, options or {})
 end
 
 return Popup

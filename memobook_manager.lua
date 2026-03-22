@@ -188,6 +188,10 @@ function MemoManager:getGroupForTag(tag, opts)
     if not doc then
         return nil
     end
+    local resolved_tag = Storage.resolveAlias(doc.id, normalized)
+    if resolved_tag then
+        normalized = resolved_tag
+    end
     return self:_getGroup(doc, normalized)
 end
 
@@ -204,6 +208,13 @@ function MemoManager:getOrCreateGroup(tag, opts)
     })
     if not doc then
         return nil
+    end
+    local resolved_tag = Storage.resolveAlias(doc.id, normalized)
+    if resolved_tag then
+        local existing_group = self:_getGroup(doc, resolved_tag)
+        if existing_group then
+            return existing_group
+        end
     end
     return self:_ensureGroup(doc, display_tag, normalized)
 end
