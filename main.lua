@@ -33,6 +33,18 @@ function MemoBook:init()
     if self.ui and self.ui.menu and self.ui.menu.registerToMainMenu then
         self.ui.menu:registerToMainMenu(self)
     end
+
+    -- Register Memo button with new KOReader dict API (PR #15184+)
+    -- Safe no-op on older versions where addToDictButtons doesn't exist.
+    if self.ui and self.ui.dictionary
+        and type(self.ui.dictionary.addToDictButtons) == "function" then
+        self.ui.dictionary:addToDictButtons({
+            id = "memobook_memo",
+            text = _("Memo"),
+            callback = self:_buildMemoDictButton(nil).callback,
+            hold_callback = self:_buildMemoDictButton(nil).hold_callback,
+        })
+    end
 end
 
 function MemoBook:onReaderReady()
@@ -88,6 +100,52 @@ local function hasMemoButton(dict_buttons)
     return false
 end
 
+-- Builds the Memo button spec for the dict popup.
+-- Used by both the new addToDictButtons API and the legacy onDictButtonsReady hook.
+function MemoBook:_buildMemoDictButton(dict_popup_arg)
+    -- dict_popup_arg is either:
+    -- new API: the DictQuickLookup widget instance (passed by KOReader as arg to callback)
+    -- old API: the dict_popup captured as upvalue in onDictButtonsReady
+    return {
+        text = _("Memo"),
+        callback = function(widget_instance)
+            -- In new API, widget_instance is passed. In old API, use upvalue.
+            local popup = widget_instance or dict_popup_arg
+            self.manager:setUI(self.ui)
+            local highlight_source = popup and popup.highlight
+                and popup.highlight.selected_text
+                and popup.highlight.selected_text.text
+            local highlight_text, highlight_norm = normalizeForMemo(highlight_source)
+            local dict_source = popup and (popup.lookupword or popup.word or popup.displayword)
+            local dict_text, dict_norm = normalizeForMemo(dict_source)
+            local selected = highlight_text or dict_text
+            if selected and selected ~= "" then
+                if popup then
+                    if popup.onClose then
+                        popup:onClose()
+                    else
+                        UIManager:close(popup)
+                    end
+                end
+                local options
+                if highlight_text and dict_text and dict_norm and highlight_norm and dict_norm ~= highlight_norm then
+                    options = { initial_alias = dict_text }
+                end
+                self.popup:show(selected, self.manager:getActiveDocumentContext(), options)
+            else
+                UIManager:show(ButtonDialog:new{
+                    title = _("Memo"),
+                    text = _("No text selected."),
+                    buttons = {{ { text = _("Close") } }},
+                })
+            end
+        end,
+        hold_callback = function()
+            self.list_dialog:show({ context = self.manager:getActiveDocumentContext() })
+        end,
+    }
+end
+
 function MemoBook:onDictButtonsReady(dict_popup, dict_buttons)
     if not dict_popup or not dict_buttons then
         return
@@ -95,42 +153,20 @@ function MemoBook:onDictButtonsReady(dict_popup, dict_buttons)
     if hasMemoButton(dict_buttons) then
         return
     end
+    -- If new KOReader API is present, we already registered at init() time.
+    -- This hook won't be called on new KOReader anyway, but guard for safety.
+    if self.ui and self.ui.dictionary
+        and type(self.ui.dictionary.addToDictButtons) == "function" then
+        return
+    end
 
+    local btn = self:_buildMemoDictButton(dict_popup)
     local button_row = {
         {
             id = "memobook_memo",
-            text = _("Memo"),
-            callback = function()
-                self.manager:setUI(self.ui)
-                local highlight_source = dict_popup.highlight
-                    and dict_popup.highlight.selected_text
-                    and dict_popup.highlight.selected_text.text
-                local highlight_text, highlight_norm = normalizeForMemo(highlight_source)
-                local dict_source = dict_popup.lookupword or dict_popup.word or dict_popup.displayword
-                local dict_text, dict_norm = normalizeForMemo(dict_source)
-                local selected = highlight_text or dict_text
-                if selected and selected ~= "" then
-                    if dict_popup.onClose then
-                        dict_popup:onClose()
-                    else
-                        UIManager:close(dict_popup)
-                    end
-                    local options
-                    if highlight_text and dict_text and dict_norm and highlight_norm and dict_norm ~= highlight_norm then
-                        options = { initial_alias = dict_text }
-                    end
-                    self.popup:show(selected, self.manager:getActiveDocumentContext(), options)
-                else
-                    UIManager:show(ButtonDialog:new{
-                        title = _("Memo"),
-                        text = _("No text selected."),
-                        buttons = {{ { text = _("Close") } }},
-                    })
-                end
-            end,
-            hold_callback = function()
-                self.list_dialog:show({ context = self.manager:getActiveDocumentContext() })
-            end,
+            text = btn.text,
+            callback = function() btn.callback(nil) end,
+            hold_callback = btn.hold_callback,
         },
     }
 
