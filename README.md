@@ -11,6 +11,8 @@ MemoBook surfaces a "Memo" button in several places so you can jot things down f
 - **Tap `Memo`** to save the current lookup term or highlighted selection as a memo. If both are available you will be prompted to keep the dictionary term as an alias.
 - **Hold `Memo`** to open the Memo list dialog for the active document without closing your lookup flow.
 
+**Note**: In newer KOReader versions (2026.05+), dictionary popup buttons can be customized via **Dictionary settings → Customize buttons → Max buttons in row**. Increase this value to display multiple plugin buttons on the same row.
+
 ### Highlight popup
 - **Tap `Memo`** after selecting text in the reader. The highlight popup closes, the selection is cleared, and the Memo editor opens with the selected text ready to annotate.
 
