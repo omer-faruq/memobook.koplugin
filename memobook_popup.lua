@@ -70,6 +70,59 @@ function Popup:new(manager)
     }, self)
 end
 
+-- Lists the aliases as buttons; tapping one removes it.
+-- ButtonDialog wraps itself in a ScrollableContainer when the rows exceed the
+-- screen height, so long alias lists stay reachable.
+local function showRemoveAliasDialog(self, primary_tag, aliases, options, refresh_callback)
+    local dialog
+    local buttons = {}
+
+    local function close_dialog()
+        if dialog then
+            UIManager:close(dialog)
+            dialog = nil
+        end
+    end
+
+    for _, alias in ipairs(aliases) do
+        table.insert(buttons, {
+            {
+                text = alias,
+                callback = function()
+                    close_dialog()
+                    self.manager:removeAlias(primary_tag, alias, {
+                        context = options.context,
+                        document_id = options.document_id,
+                    })
+                    refresh_callback()
+                end,
+            },
+        })
+    end
+
+    table.insert(buttons, {
+        {
+            text = _("Close"),
+            callback = function()
+                close_dialog()
+                refresh_callback()
+            end,
+        },
+    })
+
+    dialog = ButtonDialog:new{
+        title = _("Remove alias"),
+        buttons = buttons,
+        width = get_large_dialog_width(),
+        shrink_unneeded_width = false,
+        tap_close_callback = function()
+            dialog = nil
+            refresh_callback()
+        end,
+    }
+    UIManager:show(dialog)
+end
+
 local function buildAliasesRows(self, tag, group, options)
     options = options or {}
     local refresh_callback = options.refresh_callback or function()
@@ -135,34 +188,7 @@ local function buildAliasesRows(self, tag, group, options)
                 if #aliases == 0 then
                     return
                 end
-                local remove_dialog
-                remove_dialog = InputDialog:new{
-                    title = _("Remove alias"),
-                    input = "",
-                    buttons = {
-                        {
-                            {
-                                text = _("Remove"),
-                                callback = function()
-                                    local alias = remove_dialog:getInputText()
-                                    if alias ~= "" then
-                                        self.manager:removeAlias(primary_tag or tag, alias, { context = options.context, document_id = options.document_id })
-                                    end
-                                    UIManager:close(remove_dialog)
-                                    refresh_callback()
-                                end,
-                            },
-                            {
-                                text = _("Close"),
-                                callback = function()
-                                    UIManager:close(remove_dialog)
-                                    refresh_callback()
-                                end,
-                            },
-                        },
-                    },
-                }
-                UIManager:show(remove_dialog)
+                showRemoveAliasDialog(self, primary_tag or tag, aliases, options, refresh_callback)
             end,
         },
     })
