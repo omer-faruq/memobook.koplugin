@@ -27,6 +27,9 @@ function ListDialog:new(manager, popup)
         document_id = nil,
         active_document = nil,
         active_dialog = nil,
+        -- Set while the list acts as a memo picker (see show{ on_select = ... }).
+        on_select = nil,
+        select_title = nil,
     }, self)
 end
 
@@ -191,6 +194,22 @@ function ListDialog:showGroupDetails(group)
     })
 end
 
+-- Drops picker mode and redraws the very same list as a plain Memo Book list,
+-- keeping the filter the user already typed.
+function ListDialog:_leaveSelectMode(dialog)
+    self.on_select = nil
+    self.select_title = nil
+    if dialog then
+        if self.active_dialog == dialog then
+            self.active_dialog = nil
+        end
+        UIManager:close(dialog)
+    end
+    UIManager:scheduleIn(0, function()
+        self:show({ preserve_filter = true, preserve_select = true })
+    end)
+end
+
 function ListDialog:_closeActiveDialog()
     if self.active_dialog then
         UIManager:close(self.active_dialog)
@@ -268,6 +287,11 @@ function ListDialog:show(opts)
     if not opts.preserve_filter then
         self.filter_text = opts.filter_text
     end
+    -- Picker mode is per show() call; internal redraws pass preserve_select.
+    if not opts.preserve_select then
+        self.on_select = opts.on_select
+        self.select_title = opts.select_title
+    end
 
     if opts.context ~= nil then
         self.context = opts.context
@@ -286,6 +310,7 @@ function ListDialog:show(opts)
 
     if #groups == 0 then
         local close_button = { text = _("Close") }
+        local exit_button = self.on_select and { text = _("Exit alias matching") } or nil
         local buttons = {
             {
                 {
@@ -293,14 +318,22 @@ function ListDialog:show(opts)
                     enabled = false,
                 },
             },
-            { close_button },
         }
+        if exit_button then
+            table.insert(buttons, { exit_button })
+        end
+        table.insert(buttons, { close_button })
         ensureButtonCallbacks(buttons)
         local dialog = ButtonDialog:new{
-            title = _("Memo Book"),
+            title = self.select_title or _("Memo Book"),
             buttons = buttons,
         }
         self.active_dialog = dialog
+        if exit_button then
+            exit_button.callback = function()
+                self:_leaveSelectMode(dialog)
+            end
+        end
         close_button.callback = function()
             if self.active_dialog == dialog then
                 self.active_dialog = nil
@@ -309,7 +342,7 @@ function ListDialog:show(opts)
             local had_filter = self.filter_text ~= nil and self.filter_text ~= ""
             if had_filter then
                 UIManager:scheduleIn(0, function()
-                    self:show({ preserve_filter = false })
+                    self:show({ preserve_filter = false, preserve_select = true })
                 end)
             end
         end
@@ -329,6 +362,18 @@ function ListDialog:show(opts)
             {
                 text = label,
                 callback = function()
+                    if self.on_select then
+                        -- Hand the picked group to the caller and drop picker mode
+                        -- so a later plain open of this list behaves normally.
+                        local handler = self.on_select
+                        self.on_select = nil
+                        self.select_title = nil
+                        self:_closeActiveDialog()
+                        UIManager:scheduleIn(0, function()
+                            handler(group)
+                        end)
+                        return
+                    end
                     self.popup:show(group.primary_tag, {
                         document_id = group.document_id,
                         identity = group.document_identity,
@@ -336,6 +381,11 @@ function ListDialog:show(opts)
                     })
                 end,
                 hold_callback = function()
+                    if self.on_select then
+                        -- Open/Delete would derail the picker; details are enough.
+                        self:showGroupDetails(self.manager:getGroupForTag(group.primary_tag, groupOptions(group)) or group)
+                        return
+                    end
                     self:showGroupActions(group)
                 end,
             },
@@ -345,7 +395,7 @@ function ListDialog:show(opts)
     ensureButtonCallbacks(button_rows)
     local dialog_width = getPreferredDialogWidth()
     local dialog = ButtonDialog:new{
-        title = _("Memo Book"),
+        title = self.select_title or _("Memo Book"),
         buttons = button_rows,
         width = dialog_width,
         shrink_unneeded_width = false,
@@ -357,71 +407,88 @@ function ListDialog:show(opts)
     if content_size and content_size.w and content_size.w > 0 then
         available_width = content_size.w
     end
-    local controls_buttons = {
-        {
+    local controls_buttons = {}
+    if self.on_select then
+        table.insert(controls_buttons, {
             {
-                text = self.filter_text and self.filter_text ~= "" and T(_("Filter: %1"), self.filter_text) or _("Filter: (none)"),
-                enabled = false,
-            },
-            {
-                text = _("Search"),
+                text = _("Exit alias matching"),
                 callback = function()
-                    local search_dialog
-                    search_dialog = InputDialog:new{
-                        title = _("Search tags or aliases"),
-                        input_text = self.filter_text or "",
-                        buttons = {
+                    self:_leaveSelectMode(dialog)
+                end,
+            },
+        })
+    end
+    local main_controls = {
+        {
+            text = self.filter_text and self.filter_text ~= "" and T(_("Filter: %1"), self.filter_text) or _("Filter: (none)"),
+            enabled = false,
+        },
+        {
+            text = _("Search"),
+            callback = function()
+                local search_dialog
+                search_dialog = InputDialog:new{
+                    title = _("Search tags or aliases"),
+                    input_text = self.filter_text or "",
+                    buttons = {
+                        {
                             {
-                                {
-                                    text = _("Apply"),
-                                    callback = function()
-                                        local value = util.trim(search_dialog:getInputText() or "")
-                                        self.filter_text = value ~= "" and value or nil
-                                        UIManager:close(search_dialog)
-                                        UIManager:scheduleIn(0, function()
-                                            self:show({ preserve_filter = true })
-                                        end)
-                                    end,
-                                },
-                                {
-                                    text = _("Close"),
-                                    callback = function()
-                                        UIManager:close(search_dialog)
-                                    end,
-                                },
+                                text = _("Apply"),
+                                callback = function()
+                                    local value = util.trim(search_dialog:getInputText() or "")
+                                    self.filter_text = value ~= "" and value or nil
+                                    UIManager:close(search_dialog)
+                                    UIManager:scheduleIn(0, function()
+                                        self:show({ preserve_filter = true, preserve_select = true })
+                                    end)
+                                end,
+                            },
+                            {
+                                text = _("Close"),
+                                callback = function()
+                                    UIManager:close(search_dialog)
+                                end,
                             },
                         },
-                    }
-                    UIManager:show(search_dialog)
-                end,
-            },
-            {
-                text = _("Clear filter"),
-                enabled = self.filter_text ~= nil,
-                callback = function()
-                    self.filter_text = nil
-                    UIManager:scheduleIn(0, function()
-                        self:show({ preserve_filter = true })
-                    end)
-                end,
-            },
-            {
-                text = _("Export JSON"),
-                callback = function()
-                    self:promptExport()
-                end,
-            },
-            {
-                text = _("Close"),
-                callback = function()
-                    if self.active_dialog == dialog then
-                        self.active_dialog = nil
-                    end
-                    UIManager:close(dialog)
-                end,
-            },
+                    },
+                }
+                UIManager:show(search_dialog)
+            end,
+        },
+        {
+            text = _("Clear filter"),
+            enabled = self.filter_text ~= nil,
+            callback = function()
+                self.filter_text = nil
+                UIManager:scheduleIn(0, function()
+                    self:show({ preserve_filter = true, preserve_select = true })
+                end)
+            end,
         },
     }
+
+    -- Exporting mid-pick makes no sense; the exit button takes that slot.
+    if not self.on_select then
+        table.insert(main_controls, {
+            text = _("Export JSON"),
+            callback = function()
+                self:promptExport()
+            end,
+        })
+    end
+
+    table.insert(main_controls, {
+        text = _("Close"),
+        callback = function()
+            if self.active_dialog == dialog then
+                self.active_dialog = nil
+            end
+            self.on_select = nil
+            self.select_title = nil
+            UIManager:close(dialog)
+        end,
+    })
+    table.insert(controls_buttons, main_controls)
 
     ensureButtonCallbacks(controls_buttons)
     local controls_table = ButtonTable:new{

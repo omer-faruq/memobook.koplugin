@@ -32,6 +32,7 @@ The pop-up for a single keyword shows the tag, its aliases, and the notes stored
 - **Several notes** are shown as a list, each row displaying up to three lines of the note. The list scrolls when the notes do not fit, while the `Add`, `Alias`, and `Close` buttons stay in place at the bottom.
 - **Tap a row** to open that note full screen, where you can edit or delete it.
 - **Hold a note** (a list row, or the note button in the single-note view) to delete it after a confirmation.
+- **`Attach to an existing memo`** appears above the bottom buttons while the keyword still has no notes — see below.
 
 ## Working with Alias names
 An *alias* is an alternate tag that points to the same memo group. Aliases are useful when:
@@ -39,6 +40,15 @@ An *alias* is an alternate tag that points to the same memo group. Aliases are u
 - You want different spellings, declensions, or translations to share a single memo history.
 
 From the Memo pop-up, you can add or remove aliases using the dedicated buttons. When adding a memo from the dictionary pop-up, MemoBook automatically suggests the lookup word as an initial alias whenever it differs from your selection.
+
+### Attaching a selection to an existing memo
+When you select text and tap `Memo`, the editor opens on a brand-new keyword. If that word really belongs to a memo you already keep, tap **`Attach to an existing memo`** instead of writing a note:
+
+1. The Memo Book list opens in *alias matching* mode, titled `Attach '<word>' to a memo` and scoped to the current book. Use `Search` to narrow it down as usual, and hold a row to inspect its details.
+2. Tap the memo you want. The selected word (plus the dictionary headword, when the dictionary pop-up supplied one) is added to that memo as an alias, the empty keyword is discarded, and the target memo opens.
+3. Changed your mind? **`Exit alias matching`** at the top of the list turns it back into the ordinary Memo Book list, keeping whatever filter you typed. `Close` simply dismisses it.
+
+If the word is already the primary tag or an alias of some memo in this book, MemoBook says so and leaves the existing memo untouched. Note that aliases belong to a document, so a word can only be attached to memos of the book you are reading.
 
 ## Understanding `document_map.json`
 MemoBook identifies documents by their file paths. If you keep multiple versions of the same work (for example, EPUB vs. PDF, different language editions, or related titles in a series), you can tell MemoBook to treat them as the same identity:

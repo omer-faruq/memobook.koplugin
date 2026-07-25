@@ -7,6 +7,7 @@ local ScrollTextWidget = require("ui/widget/scrolltextwidget")
 local LineWidget = require("ui/widget/linewidget")
 local FrameContainer = require("ui/widget/container/framecontainer")
 local Font = require("ui/font")
+local InfoMessage = require("ui/widget/infomessage")
 local Geom = require("ui/geometry")
 local Size = require("ui/size")
 local Screen = require("device").screen
@@ -196,6 +197,64 @@ local function buildAliasesRows(self, tag, group, options)
     return rows, alias_widget
 end
 
+-- Files the freshly picked word under an existing memo group instead of giving it
+-- a group of its own.
+-- The empty placeholder group Popup:show() already created has to go first:
+-- Storage.aliasInUse() counts a group's own primary tag as a taken alias, so
+-- addAlias() would silently refuse while that placeholder still exists.
+local function attachTagAsAlias(self, tag, group, context, options, target)
+    if not target or not target.primary_tag then
+        return
+    end
+    local target_opts = { document_id = target.document_id }
+
+    local source_group = self.manager:getGroupForTag(tag, {
+        document_id = group and group.document_id,
+        context = context,
+    })
+    if source_group and #(source_group.notes or {}) == 0 then
+        self.manager:removeGroup(source_group.primary_tag, { document_id = source_group.document_id })
+    end
+
+    local added = self.manager:addAlias(target.primary_tag, tag, target_opts)
+    if options and options.initial_alias then
+        -- Dictionary headword that came along with the selection.
+        self.manager:addAlias(target.primary_tag, options.initial_alias, target_opts)
+    end
+
+    -- Reopen the target memo: its "Aliases:" line is the confirmation. Only a
+    -- refused alias needs saying out loud, on top of that popup.
+    UIManager:scheduleIn(0, function()
+        self:show(target.primary_tag, {
+            document_id = target.document_id,
+            identity = target.document_identity,
+            identity_type = target.document_identity_type,
+        })
+        if not added then
+            UIManager:show(InfoMessage:new{
+                text = T(_("'%1' is already used by a memo in this book."), tag),
+                timeout = 3,
+            })
+        end
+    end)
+end
+
+-- Opens the Memo Book list in picker mode so the user can search for the memo
+-- this word should join.
+local function showAttachDialog(self, tag, group, context, options)
+    local ListDialog = require("memobook_list_dialog")
+    -- Own instance: the shared list keeps its own filter/scroll state.
+    local picker = ListDialog:new(self.manager, self)
+    picker:show{
+        context = context,
+        document_id = group and group.document_id,
+        select_title = T(_("Attach '%1' to a memo"), tag),
+        on_select = function(target)
+            attachTagAsAlias(self, tag, group, context, options, target)
+        end,
+    }
+end
+
 -- Asks before dropping a note, then reopens the popup on the remaining ones.
 local function confirmDeleteNote(self, tag, group, context, index, close_dialog)
     UIManager:show(ConfirmBox:new{
@@ -317,6 +376,22 @@ local function buildMultiNoteDialog(self, tag, group, context, options)
         if #note_buttons_row > 0 then
             table.insert(buttons, note_buttons_row)
         end
+    end
+
+    -- Only offered while this word has nothing of its own to lose; merging two
+    -- populated groups is a different feature.
+    if #notes == 0 then
+        table.insert(buttons, {
+            {
+                text = _("Attach to an existing memo"),
+                callback = function()
+                    close_dialog()
+                    UIManager:scheduleIn(0, function()
+                        showAttachDialog(self, tag, group, context, options)
+                    end)
+                end,
+            },
+        })
     end
 
     table.insert(buttons, {
