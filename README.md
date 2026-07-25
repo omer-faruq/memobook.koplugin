@@ -26,6 +26,13 @@ MemoBook surfaces a "Memo" button in several places so you can jot things down f
 ### Main menu (outside any document)
 - The same **`Memo Book`** entry opens a global view across every document. Each row shows the primary tag plus its document display name, so you can review or edit notes without loading a book first.
 
+### Memo pop-up
+The pop-up for a single keyword shows the tag, its aliases, and the notes stored under it:
+- **One note** is shown as a scrollable preview.
+- **Several notes** are shown as a list, each row displaying up to three lines of the note. The list scrolls when the notes do not fit, while the `Add`, `Alias`, and `Close` buttons stay in place at the bottom.
+- **Tap a row** to open that note full screen, where you can edit or delete it.
+- **Hold a note** (a list row, or the note button in the single-note view) to delete it after a confirmation.
+
 ## Working with Alias names
 An *alias* is an alternate tag that points to the same memo group. Aliases are useful when:
 - A dictionary lookup returns a canonical headword that differs from the text you highlighted.

@@ -1,4 +1,7 @@
 local ButtonDialog = require("ui/widget/buttondialog")
+local ConfirmBox = require("ui/widget/confirmbox")
+local FocusManager = require("ui/widget/focusmanager")
+local NoteList = require("memobook_note_list")
 local TextWidget = require("ui/widget/textwidget")
 local ScrollTextWidget = require("ui/widget/scrolltextwidget")
 local LineWidget = require("ui/widget/linewidget")
@@ -55,7 +58,7 @@ local function truncate_note_label(text)
 end
 
 local function get_large_dialog_width()
-    return math.floor(math.min(Screen:getWidth(), Screen:getHeight()) * 0.8)
+    return math.floor(math.min(Screen:getWidth(), Screen:getHeight()) * 0.95)
 end
 
 local Popup = {}
@@ -167,6 +170,86 @@ local function buildAliasesRows(self, tag, group, options)
     return rows, alias_widget
 end
 
+-- Asks before dropping a note, then reopens the popup on the remaining ones.
+local function confirmDeleteNote(self, tag, group, context, index, close_dialog)
+    UIManager:show(ConfirmBox:new{
+        text = T(_("Delete note %1?"), index),
+        ok_text = _("Delete"),
+        ok_callback = function()
+            close_dialog()
+            self.manager:deleteNote(tag, index, { context = context, document_id = group.document_id })
+            self:show(tag, context)
+        end,
+    })
+end
+
+-- Opens a single note full screen, with its own edit/delete actions.
+local function openNoteViewer(self, tag, group, context, index, note, close_dialog)
+    close_dialog()
+    local viewer
+    viewer = TextViewer:new{
+        title = tag,
+        text = note.text or "",
+        text_type = "bookmark",
+        buttons_table = {
+            {
+                {
+                    text = _("Edit"),
+                    callback = function()
+                        UIManager:close(viewer)
+                        local edit_dialog
+                        edit_dialog = InputDialog:new{
+                            title = T(_("Edit note %1"), index),
+                            input = note.text or "",
+                            multiline = true,
+                            allow_newline = true,
+                            text_height = Font:getFace("infofont").size * 10,
+                            buttons = {
+                                {
+                                    {
+                                        text = _("Save"),
+                                        callback = function()
+                                            local text_value = edit_dialog:getInputText()
+                                            self.manager:updateNote(tag, index, text_value, { context = context, document_id = group.document_id })
+                                            UIManager:close(edit_dialog)
+                                            UIManager:scheduleIn(0, function()
+                                                self:show(tag, context)
+                                            end)
+                                        end,
+                                    },
+                                    {
+                                        text = _("Close"),
+                                        callback = function()
+                                            UIManager:close(edit_dialog)
+                                        end,
+                                    },
+                                },
+                            },
+                        }
+                        UIManager:show(edit_dialog)
+                    end,
+                },
+                {
+                    text = _("Delete"),
+                    callback = function()
+                        self.manager:deleteNote(tag, index, { context = context, document_id = group.document_id })
+                        UIManager:close(viewer)
+                        self:show(tag, context)
+                    end,
+                },
+                {
+                    text = _("Close"),
+                    callback = function()
+                        UIManager:close(viewer)
+                        self:show(tag, context)
+                    end,
+                },
+            },
+        },
+    }
+    UIManager:show(viewer)
+end
+
 local function buildMultiNoteDialog(self, tag, group, context, options)
     options = options or {}
     group = self.manager:getGroupForTag(tag, {
@@ -174,105 +257,40 @@ local function buildMultiNoteDialog(self, tag, group, context, options)
         document_id = group and group.document_id,
     }) or group
     local dialog
+    local function close_dialog()
+        if dialog then
+            UIManager:close(dialog)
+            dialog = nil
+        end
+    end
+    local notes = group.notes or {}
+    -- A single note still gets the scrollable preview below; several notes are
+    -- shown as a tappable list instead of being squeezed into button labels.
+    local use_list = #notes > 1
     local buttons = {}
     local note_buttons_row = {}
 
-    local first_note
-    for index, note in ipairs(group.notes or {}) do
-        if index == 1 then
-            first_note = note
+    local first_note = notes[1]
+    if not use_list then
+        for index, note in ipairs(notes) do
+            table.insert(note_buttons_row, {
+                text = truncate_note_label(note.text or ""),
+                callback = function()
+                    openNoteViewer(self, tag, group, context, index, note, close_dialog)
+                end,
+                hold_callback = function()
+                    confirmDeleteNote(self, tag, group, context, index, close_dialog)
+                end,
+            })
+            if #note_buttons_row == 2 then
+                table.insert(buttons, note_buttons_row)
+                note_buttons_row = {}
+            end
         end
-        table.insert(note_buttons_row, {
-            text = truncate_note_label(note.text or ""),
-            callback = function()
-                if dialog then
-                    UIManager:close(dialog)
-                    dialog = nil
-                end
-                local viewer
-                viewer = TextViewer:new{
-                    title = tag,
-                    text = note.text or "",
-                    text_type = "bookmark",
-                    buttons_table = {
-                        {
-                            {
-                                text = _("Edit"),
-                                callback = function()
-                                    UIManager:close(viewer)
-                                    local edit_dialog
-                                    edit_dialog = InputDialog:new{
-                                        title = T(_("Edit note %1"), index),
-                                        input = note.text or "",
-                                        multiline = true,
-                                        allow_newline = true,
-                                        text_height = Font:getFace("infofont").size * 10,
-                                        buttons = {
-                                            {
-                                                {
-                                                    text = _("Save"),
-                                                    callback = function()
-                                                        local text_value = edit_dialog:getInputText()
-                                                        self.manager:updateNote(tag, index, text_value, { context = context, document_id = group.document_id })
-                                                        UIManager:close(edit_dialog)
-                                                        UIManager:scheduleIn(0, function()
-                                                            self:show(tag, context)
-                                                        end)
-                                                    end,
-                                                },
-                                                {
-                                                    text = _("Close"),
-                                                    callback = function()
-                                                        UIManager:close(edit_dialog)
-                                                    end,
-                                                },
-                                            },
-                                        },
-                                    }
-                                    UIManager:show(edit_dialog)
-                                end,
-                            },
-                            {
-                                text = _("Delete"),
-                                callback = function()
-                                    if dialog then
-                                        UIManager:close(dialog)
-                                        dialog = nil
-                                    end
-                                    self.manager:deleteNote(tag, index, { context = context, document_id = group.document_id })
-                                    UIManager:close(viewer)
-                                    self:show(tag, context)
-                                end,
-                            },
-                            {
-                                text = _("Close"),
-                                callback = function()
-                                    UIManager:close(viewer)
-                                    self:show(tag, context)
-                                end,
-                            },
-                        },
-                    },
-                }
-                UIManager:show(viewer)
-            end,
-            hold_callback = function()
-                if dialog then
-                    UIManager:close(dialog)
-                    dialog = nil
-                end
-                self.manager:deleteNote(tag, index, { context = context, document_id = group.document_id })
-                self:show(tag, context)
-            end,
-        })
-        if #note_buttons_row == 2 then
-            table.insert(buttons, note_buttons_row)
-            note_buttons_row = {}
-        end
-    end
 
-    if #note_buttons_row > 0 then
-        table.insert(buttons, note_buttons_row)
+        if #note_buttons_row > 0 then
+            table.insert(buttons, note_buttons_row)
+        end
     end
 
     table.insert(buttons, {
@@ -384,29 +402,54 @@ local function buildMultiNoteDialog(self, tag, group, context, options)
     end
     dialog:addWidget(heading_group)
 
-    local preview_note = first_note or { text = _("[No note]") }
-    local note_face = Font:getFace("infofont")
-        or Font:getFace("cfont")
-        or Font:getFace("x_smallinfofont")
-        or Font:getFace("infofont", 20)
-        or Font:getFace("cfont", 20)
-    local face_size = (note_face and note_face.size) or Size.item.height_big
-    local content_padding = Size.padding.default
-    local note_height = math.max(face_size * 12, Size.item.height_big)
-    local preview_container = FrameContainer:new{
-        padding = content_padding,
-        ScrollTextWidget:new{
-            text = preview_note.text or _("[No note]"),
-            face = note_face,
-            width = math.max(available_width - 2 * content_padding, Size.padding.large * 2),
-            height = note_height,
-            dialog = dialog,
-            alignment = "left",
-        },
-    }
-    preview_container.not_focusable = true
+    if use_list then
+        local list, scrollable = NoteList.build{
+            notes = notes,
+            width = available_width,
+            show_parent = dialog,
+            max_height = math.floor(Screen:getHeight() * 0.5),
+            on_tap = function(index, note)
+                openNoteViewer(self, tag, group, context, index, note, close_dialog)
+            end,
+            on_hold = function(index)
+                confirmDeleteNote(self, tag, group, context, index, close_dialog)
+            end,
+        }
+        dialog:addWidget(list)
+        if scrollable then
+            -- Let UIManager crop inner repaints (row highlight) to the list area.
+            dialog.cropping_widget = list
+            -- ButtonDialog assumes its cropping widget is the button table and
+            -- scrolls it to follow the focused button; keep hardware-key
+            -- navigation over the footer buttons from moving the note list.
+            dialog.onFocusMove = FocusManager.onFocusMove
+            dialog._onPageScrollToRow = function() end
+        end
+    else
+        local preview_note = first_note or { text = _("[No note]") }
+        local note_face = Font:getFace("infofont")
+            or Font:getFace("cfont")
+            or Font:getFace("x_smallinfofont")
+            or Font:getFace("infofont", 20)
+            or Font:getFace("cfont", 20)
+        local face_size = (note_face and note_face.size) or Size.item.height_big
+        local content_padding = Size.padding.default
+        local note_height = math.max(face_size * 12, Size.item.height_big)
+        local preview_container = FrameContainer:new{
+            padding = content_padding,
+            ScrollTextWidget:new{
+                text = preview_note.text or _("[No note]"),
+                face = note_face,
+                width = math.max(available_width - 2 * content_padding, Size.padding.large * 2),
+                height = note_height,
+                dialog = dialog,
+                alignment = "left",
+            },
+        }
+        preview_container.not_focusable = true
 
-    dialog:addWidget(preview_container)
+        dialog:addWidget(preview_container)
+    end
 
     UIManager:show(dialog)
 end
