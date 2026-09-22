@@ -38,13 +38,75 @@ function MemoBook:init()
     -- Safe no-op on older versions where addToDictButtons doesn't exist.
     if self.ui and self.ui.dictionary
         and type(self.ui.dictionary.addToDictButtons) == "function" then
+        local spec = self:_buildMemoDictButton(nil)
         self.ui.dictionary:addToDictButtons({
             id = "memobook_memo",
+            -- `menu_text` is what puts the button in KOReader's "Customize
+            -- buttons" selector.  Without it the selector doesn't know the
+            -- button, and the first time the user sorts/toggles anything there
+            -- ours is dropped from the saved dict_button_config for good.
+            menu_text = _("Memo"),
             text = _("Memo"),
-            callback = self:_buildMemoDictButton(nil).callback,
-            hold_callback = self:_buildMemoDictButton(nil).hold_callback,
+            callback = spec.callback,
+            hold_callback = spec.hold_callback,
         })
+        self:_restoreDictButtonInUserLayout("memobook_memo")
     end
+end
+
+-- Is `button_id` used anywhere in a dict button layout (a list of rows of ids)?
+local function layoutHasButtonId(layout, button_id)
+    for _, row in ipairs(layout or {}) do
+        for _, id in ipairs(row) do
+            if id == button_id then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- One time repair of the saved dictionary button layout.
+-- The button used to be registered without a `menu_text`, so KOReader's
+-- "Customize buttons" selector didn't list it: as soon as the user sorted or
+-- toggled any dictionary button, the regenerated dict_button_config silently
+-- lost the Memo button, with no way to get it back (that layout lives in
+-- KOReader's global settings, so even reinstalling the plugin doesn't help).
+-- Re-add the id once; removing it in the selector now sticks.
+function MemoBook:_restoreDictButtonInUserLayout(button_id)
+    local config = G_reader_settings:readSetting("dict_button_config")
+    if not (config and config.layout) then
+        return -- never customized, nothing to repair
+    end
+
+    local restore_flag = "memobook_dict_button_restored_" .. button_id
+    if G_reader_settings:isTrue(restore_flag) then
+        return
+    end
+    G_reader_settings:saveSetting(restore_flag, true)
+
+    if layoutHasButtonId(config.layout, button_id) then
+        return -- still there, nothing to do
+    end
+
+    -- Append to the last row while it has room, else start a new one.
+    local last_idx = #config.layout
+    local row = config.layout[last_idx]
+    local max_in_row = (config.row_count and config.row_count[last_idx]) or 3
+    if not row or #row >= max_in_row then
+        row = {}
+        table.insert(config.layout, row)
+        if config.row_count then
+            config.row_count[#config.layout] = 3
+        end
+    end
+    table.insert(row, button_id)
+
+    if config.order and not layoutHasButtonId({ config.order }, button_id) then
+        table.insert(config.order, button_id) -- `order` is a flat list, i.e. a single row
+    end
+
+    G_reader_settings:saveSetting("dict_button_config", config)
 end
 
 function MemoBook:onReaderReady()
@@ -176,14 +238,6 @@ function MemoBook:onDictButtonsReady(dict_popup, dict_buttons)
     else
         table.insert(dict_buttons, insert_index, button_row)
     end
-end
-
-function MemoBook:handleEvent(event)
-    if event.type == "DictButtonsReady" then
-        self:onDictButtonsReady(event.arg1, event.arg2)
-        return true
-    end
-    return InputContainer.handleEvent(self, event)
 end
 
 return MemoBook
