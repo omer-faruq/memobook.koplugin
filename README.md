@@ -20,8 +20,8 @@ MemoBook surfaces a "Memo" button in several places so you can jot things down f
 - **`Memo Book` entry** opens the memo list filtered to the current document. From here you can:
   - Browse memo groups (one group per primary tag).
   - Tap a memo to reopen or edit its notes.
-  - Hold a memo to view details, open it directly, or delete the group.
-  - Use the sticky controls at the top to search tags/aliases, clear filters, export all memos for the book to JSON, or close the dialog.
+  - Hold a memo to view details, open it directly, rename it, or delete the group.
+  - Use the sticky controls at the top to search tags/aliases, clear filters, create a memo by hand (`New memo`), export all memos for the book to JSON, or close the dialog.
 
 ### Main menu (outside any document)
 - The same **`Memo Book`** entry opens a global view across every document. Each row shows the primary tag plus its document display name, so you can review or edit notes without loading a book first.
@@ -33,6 +33,12 @@ The pop-up for a single keyword shows the tag, its aliases, and the notes stored
 - **Tap a row** to open that note full screen, where you can edit or delete it.
 - **Hold a note** (a list row, or the note button in the single-note view) to delete it after a confirmation.
 - **`Attach to an existing memo`** appears above the bottom buttons while the keyword still has no notes — see below.
+
+### Renaming a memo
+Hold a memo in the list and tap **`Rename`** to change its main word. Notes and aliases stay with the memo. The new word must be free in that book: if another memo already uses it as its main word or as an alias, MemoBook refuses and says so. If the word is an alias *of that same memo*, the alias is consumed and becomes the main word.
+
+### Creating a memo by hand
+You do not have to highlight something to start a memo. Tap **`New memo`** in the list dialog (it is also offered when the list is still empty), type the word, and the Memo pop-up opens on it, ready for a note or an alias. The memo belongs to the book the list is showing, or to the global view when no document is open. A memo you leave without any note is discarded, just like one started from a highlight. If the word already has a memo, MemoBook opens that one instead of creating a duplicate.
 
 ## Working with Alias names
 An *alias* is an alternate tag that points to the same memo group. Aliases are useful when:

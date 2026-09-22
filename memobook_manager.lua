@@ -319,6 +319,27 @@ function MemoManager:removeGroup(tag, opts)
     return true
 end
 
+-- Renames the memo itself (its primary tag). Aliases and notes stay put.
+-- Returns false plus a reason code when the new word is taken in this document.
+function MemoManager:renameGroup(tag, new_tag, opts)
+    local group = self:getGroupForTag(tag, opts)
+    if not group then
+        return false, "not_found"
+    end
+    local display_tag, normalized = prepareText(new_tag)
+    if not normalized then
+        return false, "invalid"
+    end
+    if normalized == group.normalized_tag and display_tag == group.primary_tag then
+        return true
+    end
+    local ok, err = Storage.renameGroup(group.id, group.document_id, display_tag, normalized)
+    if not ok then
+        return false, err
+    end
+    return true, display_tag
+end
+
 function MemoManager:getNote(tag, index, opts)
     local group = self:getGroupForTag(tag, opts)
     if not group then

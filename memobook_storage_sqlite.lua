@@ -387,6 +387,35 @@ function Storage.setGroupMultiNoteMode(group_id, enabled)
     end)
 end
 
+-- Changes a group's primary tag (the memo's title word). Rejects a name that
+-- another group or another group's alias already holds in the same document;
+-- an alias of this very group is dropped so the word can become the title.
+function Storage.renameGroup(group_id, document_id, primary_tag, normalized_tag)
+    Storage.init()
+    if not group_id or not document_id or not normalized_tag then
+        return false, "invalid"
+    end
+    return withConnection(function(conn)
+        local clash = fetchOne(conn, [[SELECT id FROM groups WHERE document_id = ? AND normalized_tag = ? AND id <> ? LIMIT 1;]], { document_id, normalized_tag, group_id })
+        if clash then
+            return false, "tag_in_use"
+        end
+        local alias_clash = fetchOne(conn, [[SELECT a.id FROM aliases a JOIN groups g ON g.id = a.group_id WHERE g.document_id = ? AND a.normalized_alias = ? AND a.group_id <> ? LIMIT 1;]], { document_id, normalized_tag, group_id })
+        if alias_clash then
+            return false, "alias_in_use"
+        end
+        local drop_stmt = conn:prepare([[DELETE FROM aliases WHERE group_id = ? AND normalized_alias = ?;]])
+        drop_stmt:bind(group_id, normalized_tag)
+        drop_stmt:step()
+        drop_stmt:close()
+        local stmt = conn:prepare([[UPDATE groups SET primary_tag = ?, normalized_tag = ? WHERE id = ?;]])
+        stmt:bind(primary_tag, normalized_tag, group_id)
+        stmt:step()
+        stmt:close()
+        return true
+    end)
+end
+
 function Storage.deleteGroup(group_id)
     Storage.init()
     return withConnection(function(conn)

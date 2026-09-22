@@ -80,6 +80,109 @@ local function ensureButtonCallbacks(button_grid)
     return button_grid
 end
 
+local RENAME_ERRORS = {
+    tag_in_use = _("Another memo in this book already uses that word."),
+    alias_in_use = _("That word is already an alias of another memo."),
+    not_found = _("Memo could not be loaded."),
+    invalid = _("Please provide a word."),
+}
+
+-- Renames the memo's main word from the list's long-press menu.
+function ListDialog:promptRename(group)
+    local opts = groupOptions(group)
+    local rename_dialog
+    rename_dialog = InputDialog:new{
+        title = _("Rename memo"),
+        input = group.primary_tag or "",
+        buttons = {
+            {
+                {
+                    text = _("Close"),
+                    callback = function()
+                        UIManager:close(rename_dialog)
+                    end,
+                },
+                {
+                    text = _("Rename"),
+                    is_enter_default = true,
+                    callback = function()
+                        local value = util.trim(rename_dialog:getInputText() or "")
+                        if value == "" then
+                            UIManager:show(InfoMessage:new{ text = _("Please provide a word."), timeout = 2 })
+                            return
+                        end
+                        local ok, err = self.manager:renameGroup(group.primary_tag, value, opts)
+                        if not ok then
+                            UIManager:show(InfoMessage:new{
+                                text = RENAME_ERRORS[err] or _("Rename failed."),
+                                timeout = 3,
+                            })
+                            return
+                        end
+                        UIManager:close(rename_dialog)
+                        UIManager:scheduleIn(0, function()
+                            self:show({ preserve_filter = true, preserve_select = true })
+                        end)
+                    end,
+                },
+            },
+        },
+    }
+    UIManager:show(rename_dialog)
+end
+
+-- Creates a memo by hand, without a word picked from a book: asks for the main
+-- word and hands it to the popup, which is where notes and aliases are added.
+function ListDialog:promptNewMemo()
+    local context = self.context
+    if not context and self.active_document then
+        context = {
+            identity = self.active_document.identity,
+            identity_type = self.active_document.identity_type,
+            display_name = self.active_document.display_name,
+        }
+    end
+    local new_dialog
+    new_dialog = InputDialog:new{
+        title = _("New memo"),
+        input = "",
+        buttons = {
+            {
+                {
+                    text = _("Close"),
+                    callback = function()
+                        UIManager:close(new_dialog)
+                    end,
+                },
+                {
+                    text = _("Create"),
+                    is_enter_default = true,
+                    callback = function()
+                        local value = util.trim(new_dialog:getInputText() or "")
+                        if value == "" then
+                            UIManager:show(InfoMessage:new{ text = _("Please provide a word."), timeout = 2 })
+                            return
+                        end
+                        UIManager:close(new_dialog)
+                        local existing = self.manager:getGroupForTag(value, { context = context })
+                        self:_closeActiveDialog()
+                        UIManager:scheduleIn(0, function()
+                            self.popup:show(existing and existing.primary_tag or value, context)
+                            if existing then
+                                UIManager:show(InfoMessage:new{
+                                    text = T(_("'%1' already has a memo; opening it."), value),
+                                    timeout = 3,
+                                })
+                            end
+                        end)
+                    end,
+                },
+            },
+        },
+    }
+    UIManager:show(new_dialog)
+end
+
 function ListDialog:showGroupActions(group)
     local opts = groupOptions(group)
     local full_group = self.manager:getGroupForTag(group.primary_tag, opts)
@@ -111,6 +214,21 @@ function ListDialog:showGroupActions(group)
                     end)
                 end,
             },
+            {
+                text = _("Rename"),
+                callback = function()
+                    if dialog then
+                        UIManager:close(dialog)
+                    elseif UIManager.closeTopmost then
+                        UIManager:closeTopmost()
+                    elseif UIManager.close then
+                        UIManager:close()
+                    end
+                    self:promptRename(full_group)
+                end,
+            },
+        },
+        {
             {
                 text = _("Delete"),
                 callback = function()
@@ -322,6 +440,11 @@ function ListDialog:show(opts)
         if exit_button then
             table.insert(buttons, { exit_button })
         end
+        local new_button
+        if not self.on_select then
+            new_button = { text = _("New memo") }
+            table.insert(buttons, { new_button })
+        end
         table.insert(buttons, { close_button })
         ensureButtonCallbacks(buttons)
         local dialog = ButtonDialog:new{
@@ -332,6 +455,11 @@ function ListDialog:show(opts)
         if exit_button then
             exit_button.callback = function()
                 self:_leaveSelectMode(dialog)
+            end
+        end
+        if new_button then
+            new_button.callback = function()
+                self:promptNewMemo()
             end
         end
         close_button.callback = function()
@@ -467,16 +595,6 @@ function ListDialog:show(opts)
         },
     }
 
-    -- Exporting mid-pick makes no sense; the exit button takes that slot.
-    if not self.on_select then
-        table.insert(main_controls, {
-            text = _("Export JSON"),
-            callback = function()
-                self:promptExport()
-            end,
-        })
-    end
-
     table.insert(main_controls, {
         text = _("Close"),
         callback = function()
@@ -489,6 +607,24 @@ function ListDialog:show(opts)
         end,
     })
     table.insert(controls_buttons, main_controls)
+
+    -- Creating or exporting mid-pick makes no sense; the exit button covers that case.
+    if not self.on_select then
+        table.insert(controls_buttons, {
+            {
+                text = _("New memo"),
+                callback = function()
+                    self:promptNewMemo()
+                end,
+            },
+            {
+                text = _("Export JSON"),
+                callback = function()
+                    self:promptExport()
+                end,
+            },
+        })
+    end
 
     ensureButtonCallbacks(controls_buttons)
     local controls_table = ButtonTable:new{
